@@ -1,0 +1,21 @@
+# PyQt5 with better Windows wheel support
+PyQt5==5.15.10
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.13.0
+
+# Core dependencies
+requests==2.32.3
+urllib3==2.2.2
+Pillow==10.4.0
+pywin32==308
+keyboard==0.13.5
+pystray==0.19.5
+configparser==6.0.1
+cryptography==43.0.1
+
+# Alternative installation notes:
+# If PyQt5 installation fails, try:
+# pip install --only-binary=all PyQt5==5.15.10
+# 
+# Or install manually:
+# pip install PyQt5==5.15.10 --find-links https://download.qt.io/official_releases/QtForPython/

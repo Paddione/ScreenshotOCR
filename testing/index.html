@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenshotOCR Testing Environment</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🧪 ScreenshotOCR Testing Environment</h1>
+            <p>Comprehensive testing interface for all system components</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Test Control Panel -->
+            <div class="control-panel">
+                <div class="test-groups">
+                    <h3>Test Groups</h3>
+                    <div class="group-buttons">
+                        <button class="btn btn-group" data-group="unit">Unit Tests</button>
+                        <button class="btn btn-group" data-group="integration">Integration Tests</button>
+                        <button class="btn btn-group" data-group="component">Component Tests</button>
+                        <button class="btn btn-group" data-group="system">System Tests</button>
+                        <button class="btn btn-group" data-group="performance">Performance Tests</button>
+                        <button class="btn btn-group" data-group="security">Security Tests</button>
+                        <button class="btn btn-group btn-full" data-group="all">🚀 Run All Tests</button>
+                    </div>
+                </div>
+
+                <div class="individual-tests">
+                    <h3>Individual Tests</h3>
+                    
+                    <!-- Unit Tests -->
+                    <div class="test-category" data-category="unit">
+                        <h4>Unit Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_hash_password">Hash Password</button>
+                            <button class="btn btn-test" data-test="test_verify_password">Verify Password</button>
+                            <button class="btn btn-test" data-test="test_create_access_token">Create JWT Token</button>
+                            <button class="btn btn-test" data-test="test_verify_token">Verify JWT Token</button>
+                            <button class="btn btn-test" data-test="test_database_connection">Database Connection</button>
+                            <button class="btn btn-test" data-test="test_user_validation">User Validation</button>
+                            <button class="btn btn-test" data-test="test_preprocess_image">Image Preprocessing</button>
+                            <button class="btn btn-test" data-test="test_extract_text">OCR Text Extraction</button>
+                            <button class="btn btn-test" data-test="test_format_date">Format Date Utility</button>
+                            <button class="btn btn-test" data-test="test_truncate_text">Truncate Text Utility</button>
+                        </div>
+                    </div>
+
+                    <!-- Integration Tests -->
+                    <div class="test-category" data-category="integration">
+                        <h4>Integration Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_login_flow">Login Flow</button>
+                            <button class="btn btn-test" data-test="test_protected_endpoint_access">Protected Endpoints</button>
+                            <button class="btn btn-test" data-test="test_folder_crud">Folder CRUD</button>
+                            <button class="btn btn-test" data-test="test_response_crud">Response CRUD</button>
+                            <button class="btn btn-test" data-test="test_user_folder_relationship">User-Folder Relations</button>
+                            <button class="btn btn-test" data-test="test_image_to_text_pipeline">OCR Pipeline</button>
+                            <button class="btn btn-test" data-test="test_ai_analysis_integration">AI Integration</button>
+                            <button class="btn btn-test" data-test="test_redis_queue_processing">Redis Queue</button>
+                        </div>
+                    </div>
+
+                    <!-- Component Tests -->
+                    <div class="test-category" data-category="component">
+                        <h4>Component Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_login_component">Login Component</button>
+                            <button class="btn btn-test" data-test="test_dashboard_rendering">Dashboard Rendering</button>
+                            <button class="btn btn-test" data-test="test_navigation_component">Navigation Component</button>
+                            <button class="btn btn-test" data-test="test_file_upload_component">File Upload Component</button>
+                            <button class="btn btn-test" data-test="test_response_list_component">Response List</button>
+                            <button class="btn btn-test" data-test="test_folder_management">Folder Management</button>
+                        </div>
+                    </div>
+
+                    <!-- System Tests -->
+                    <div class="test-category" data-category="system">
+                        <h4>System Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_complete_user_registration">User Registration</button>
+                            <button class="btn btn-test" data-test="test_complete_authentication_flow">Complete Auth Flow</button>
+                            <button class="btn btn-test" data-test="test_screenshot_upload_to_analysis">Screenshot Workflow</button>
+                            <button class="btn btn-test" data-test="test_web_upload_workflow">Web Upload Workflow</button>
+                            <button class="btn btn-test" data-test="test_response_organization">Response Organization</button>
+                            <button class="btn btn-test" data-test="test_multiple_users_concurrent">Concurrent Users</button>
+                            <button class="btn btn-test" data-test="test_database_consistency">Database Consistency</button>
+                        </div>
+                    </div>
+
+                    <!-- Performance Tests -->
+                    <div class="test-category" data-category="performance">
+                        <h4>Performance Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_api_response_times">API Response Times</button>
+                            <button class="btn btn-test" data-test="test_api_performance_benchmark">API Performance Benchmark</button>
+                            <button class="btn btn-test" data-test="test_database_query_performance">Database Performance</button>
+                            <button class="btn btn-test" data-test="test_ocr_processing_speed">OCR Processing Speed</button>
+                            <button class="btn btn-test" data-test="test_concurrent_user_load">User Load Test</button>
+                            <button class="btn btn-test" data-test="test_high_volume_uploads">High Volume Uploads</button>
+                            <button class="btn btn-test" data-test="test_memory_usage">Memory Usage Test</button>
+                        </div>
+                    </div>
+
+                    <!-- Security Tests -->
+                    <div class="test-category" data-category="security">
+                        <h4>Security Tests</h4>
+                        <div class="test-buttons">
+                            <button class="btn btn-test" data-test="test_jwt_token_manipulation">JWT Manipulation</button>
+                            <button class="btn btn-test" data-test="test_expired_token_rejection">Expired Token Rejection</button>
+                            <button class="btn btn-test" data-test="test_sql_injection_protection">SQL Injection Protection</button>
+                            <button class="btn btn-test" data-test="test_malicious_file_rejection">Malicious File Rejection</button>
+                            <button class="btn btn-test" data-test="test_brute_force_protection">Brute Force Protection</button>
+                            <button class="btn btn-test" data-test="test_file_size_limits">File Size Limits</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Execution Area -->
+            <div class="execution-area">
+                <div class="status-bar">
+                    <span id="test-status">Ready</span>
+                    <span id="test-progress"></span>
+                    <button id="clear-logs" class="btn btn-secondary">Clear Logs</button>
+                    <button id="export-logs" class="btn btn-secondary">Export Session Logs</button>
+                    <button id="export-error-logs" class="btn btn-secondary">Export Combined Error Log</button>
+                    <button id="view-system-info" class="btn btn-secondary">System Info</button>
+                </div>
+
+                <!-- Test Code Display -->
+                <div class="code-display">
+                    <h3>Running Test Code</h3>
+                    <pre id="test-code-viewer">
+// Test code will appear here when running tests
+console.log('Welcome to ScreenshotOCR Testing Environment');
+                    </pre>
+                </div>
+
+                <!-- Log Display -->
+                <div class="log-display">
+                    <h3>Test Execution Logs</h3>
+                    <div id="log-container">
+                        <div class="log-entry info">
+                            <span class="timestamp">[00:00:00]</span>
+                            <span class="level">INFO</span>
+                            <span class="message">Testing environment initialized</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="test-runner.js"></script>
+</body>
+</html> 

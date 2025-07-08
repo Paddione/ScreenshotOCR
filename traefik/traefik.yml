@@ -1,0 +1,48 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+api:
+  dashboard: true
+  debug: true
+
+entryPoints:
+  web:
+    address: ":80"
+    # Don't force redirect to HTTPS for all traffic
+    # This will be handled on a per-route basis
+
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: screenshot-network
+
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      httpChallenge:
+        entryPoint: web
+      email: patrick@korczewski.de
+      storage: /letsencrypt/acme.json
+      # Use production Let's Encrypt server
+      # caServer: https://acme-v02.api.letsencrypt.org/directory
+
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true

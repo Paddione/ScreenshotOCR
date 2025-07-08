@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: screenshot-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik:ro
+      - ./data/letsencrypt:/letsencrypt
+    environment:
+      - TRAEFIK_DASHBOARD_PASSWORD=${TRAEFIK_DASHBOARD_PASSWORD}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+      - DOMAIN=${DOMAIN}
+      - WEBDOMAIN=${WEBDOMAIN}
+    labels:
+      - "traefik.enable=true"
+      # IP access for dashboard (HTTP only - no SSL)
+      - "traefik.http.routers.traefik-dashboard-local.rule=Host(`${DOMAIN}`) && PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.traefik-dashboard-local.entrypoints=web"
+      - "traefik.http.routers.traefik-dashboard-local.middlewares=auth"
+      - "traefik.http.routers.traefik-dashboard-local.service=api@internal"
+      # Domain access for dashboard (HTTPS with SSL)
+      - "traefik.http.routers.traefik-dashboard-domain.rule=Host(`${WEBDOMAIN}`) && PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.traefik-dashboard-domain.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard-domain.middlewares=auth"
+      - "traefik.http.routers.traefik-dashboard-domain.service=api@internal"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_PASSWORD}"
+    networks:
+      - screenshot-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: screenshot-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - screenshot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: DOCKERFILE
+    container_name: screenshot-api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - API_AUTH_TOKEN=${API_AUTH_TOKEN}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/uploads:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      # IP access for API (HTTP only - no SSL)
+      - "traefik.http.routers.api-local.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api-local.entrypoints=web"
+      - "traefik.http.routers.api-local.service=api"
+      # Domain access for API (HTTPS with SSL)
+      - "traefik.http.routers.api-domain.rule=Host(`${WEBDOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api-domain.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api-domain.service=api"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+    networks:
+      - screenshot-network
+
+  ocr:
+    build:
+      context: ./OCR
+      dockerfile: DOCKERFILE
+    container_name: screenshot-ocr
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/uploads:/app/uploads
+    networks:
+      - screenshot-network
+
+  storage:
+    build:
+      context: ./api
+      dockerfile: DOCKERFILE
+    container_name: screenshot-storage
+    restart: unless-stopped
+    command: ["python", "storage_processor.py"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - screenshot-network
+
+  web:
+    build:
+      context: ./web
+      dockerfile: DOCKERFILE
+    container_name: screenshot-web
+    restart: unless-stopped
+    environment:
+      - REACT_APP_API_URL=https://${WEBDOMAIN}/api
+    labels:
+      - "traefik.enable=true"
+      # IP access for web (HTTP only - no SSL)
+      - "traefik.http.routers.web-local.rule=Host(`${DOMAIN}`) && !PathPrefix(`/api`) && !PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.web-local.entrypoints=web"
+      - "traefik.http.routers.web-local.service=web"
+      # Domain access for web (HTTPS with SSL)
+      - "traefik.http.routers.web-domain.rule=Host(`${WEBDOMAIN}`) && !PathPrefix(`/api`) && !PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.web-domain.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.web-domain.service=web"
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+    networks:
+      - screenshot-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: screenshot-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - screenshot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+  letsencrypt_data:
+
+networks:
+  screenshot-network:
+    driver: bridge

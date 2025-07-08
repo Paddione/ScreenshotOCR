@@ -1,0 +1,71 @@
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 63072000
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+
+    cors:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowOriginList:
+          - "http://10.0.0.44"
+          - "https://web.korczewski.de"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
+    rate-limit:
+      rateLimit:
+        burst: 100
+        average: 50
+
+    # Middleware for domain-only HTTPS redirect
+    https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  # External service routing for web.korczewski.de to 10.0.0.44:8
+  routers:
+    web-korczewski-external:
+      rule: "Host(`web.korczewski.de`)"
+      entryPoints:
+        - "websecure"
+      service: "external-web-service"
+      tls:
+        certResolver: "letsencrypt"
+      middlewares:
+        - "secure-headers"
+
+  services:
+    external-web-service:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.0.44:8000"
+
+  # Note: Routing is now handled via Docker labels in docker-compose.yml
+  # This allows for both local (IP) and domain access with proper SSL
+  # IP access uses HTTP only, domain access uses HTTPS with Let's Encrypt
+
+tls:
+  options:
+    default:
+      minVersion: "VersionTLS12"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
