@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-ScreenshotOCR Windows Client
+ScreenshotOCR Windows Client - Enhanced Edition
 PyQt5-based desktop application for automated screenshot capture and analysis
+Enhanced with additional hotkeys and productivity features
 """
 
 import os
@@ -14,6 +15,8 @@ import threading
 import requests
 import keyboard
 import pystray
+import subprocess
+import numpy as np
 from queue import Queue
 from datetime import datetime
 from configparser import ConfigParser
@@ -30,7 +33,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem, QDialog, QDialogButtonBox, QFileDialog
 )
 from PyQt5.QtCore import QTimer, QThread, pyqtSignal, Qt, QSettings
-from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor
+from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor, QClipboard
 
 # Configure logging
 logging.basicConfig(
@@ -44,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class ScreenshotClient:
-    """Main screenshot client class"""
+    """Main screenshot client class with enhanced hotkey support"""
     
     def __init__(self):
         self.config = self.load_config()
@@ -55,23 +58,33 @@ class ScreenshotClient:
         self.screenshot_count = 0
         self.upload_success_count = 0
         self.upload_failed_count = 0
+        self.main_window = None  # Will be set by MainWindow
         
         # Setup upload thread
         self.upload_thread = None
         self.start_upload_thread()
         
-        logger.info("ScreenshotOCR Windows Client initialized")
+        logger.info("ScreenshotOCR Windows Client Enhanced Edition initialized")
     
     def load_config(self):
         """Load configuration from file"""
         config = ConfigParser()
         config_file = 'client_config.ini'
         
-        # Default configuration
+        # Enhanced default configuration with new hotkeys
         default_config = {
             'server_url': 'https://web.korczewski.de',
             'api_token': '8BHxKkgbShG1vwhXje6MDnKYW5d55AwG47XuFma8c5cfNG5GUfJaopXz6cDuY0Df',
             'hotkey': 'ctrl+s',
+            'clipboard_text_hotkey': 'ctrl+shift+t',
+            'clipboard_image_hotkey': 'ctrl+shift+i',
+            'screenshot_local_hotkey': 'ctrl+shift+s',
+            'config_dialog_hotkey': 'ctrl+shift+c',
+            'window_toggle_hotkey': 'ctrl+shift+h',
+            'retry_uploads_hotkey': 'ctrl+shift+r',
+            'toggle_local_saving_hotkey': 'ctrl+shift+l',
+            'open_folder_hotkey': 'ctrl+shift+e',
+            'toggle_auto_upload_hotkey': 'ctrl+shift+q',
             'capture_delay': '0.5',
             'auto_upload': 'true',
             'save_locally': 'true',
@@ -82,7 +95,9 @@ class ScreenshotClient:
             'capture_cursor': 'false',
             'startup_minimized': 'true',
             'notifications': 'true',
-            'verify_ssl': 'true'
+            'verify_ssl': 'true',
+            'clipboard_enabled': 'true',
+            'enhanced_hotkeys_enabled': 'true'
         }
         
         if os.path.exists(config_file):
@@ -99,24 +114,111 @@ class ScreenshotClient:
             config.write(f)
     
     def register_hotkey(self):
-        """Register global hotkey"""
+        """Register global hotkeys including enhanced ones"""
         try:
-            hotkey = self.config.get('client', 'hotkey', fallback='ctrl+s')
-            
             if self.hotkey_registered:
                 keyboard.unhook_all()
                 self.hotkey_registered = False
             
+            # Screenshot hotkey
+            hotkey = self.config.get('client', 'hotkey', fallback='ctrl+s')
             keyboard.add_hotkey(hotkey, self.capture_screenshot)
-            self.hotkey_registered = True
             
-            logger.info(f"Hotkey registered: {hotkey}")
+            # Clipboard hotkeys
+            if self.config.getboolean('client', 'clipboard_enabled', fallback=True):
+                clipboard_text_hotkey = self.config.get('client', 'clipboard_text_hotkey', fallback='ctrl+shift+t')
+                clipboard_image_hotkey = self.config.get('client', 'clipboard_image_hotkey', fallback='ctrl+shift+i')
+                
+                keyboard.add_hotkey(clipboard_text_hotkey, self.process_clipboard_text)
+                keyboard.add_hotkey(clipboard_image_hotkey, self.process_clipboard_image)
+                
+                logger.info(f"Clipboard hotkeys registered: {clipboard_text_hotkey} (text), {clipboard_image_hotkey} (image)")
+            
+            # Enhanced hotkeys
+            if self.config.getboolean('client', 'enhanced_hotkeys_enabled', fallback=True):
+                # Screenshot local-only hotkey
+                screenshot_local_hotkey = self.config.get('client', 'screenshot_local_hotkey', fallback='ctrl+shift+s')
+                keyboard.add_hotkey(screenshot_local_hotkey, self.capture_screenshot_local_only)
+                
+                # Configuration dialog hotkey
+                config_dialog_hotkey = self.config.get('client', 'config_dialog_hotkey', fallback='ctrl+shift+c')
+                keyboard.add_hotkey(config_dialog_hotkey, self.show_config_dialog)
+                
+                # Window toggle hotkey
+                window_toggle_hotkey = self.config.get('client', 'window_toggle_hotkey', fallback='ctrl+shift+h')
+                keyboard.add_hotkey(window_toggle_hotkey, self.toggle_main_window)
+                
+                # Retry uploads hotkey
+                retry_uploads_hotkey = self.config.get('client', 'retry_uploads_hotkey', fallback='ctrl+shift+r')
+                keyboard.add_hotkey(retry_uploads_hotkey, self.retry_failed_uploads)
+                
+                # Toggle local saving hotkey
+                toggle_local_hotkey = self.config.get('client', 'toggle_local_saving_hotkey', fallback='ctrl+shift+l')
+                keyboard.add_hotkey(toggle_local_hotkey, self.toggle_local_saving)
+                
+                # Open folder hotkey
+                open_folder_hotkey = self.config.get('client', 'open_folder_hotkey', fallback='ctrl+shift+e')
+                keyboard.add_hotkey(open_folder_hotkey, self.open_local_folder)
+                
+                # Toggle auto-upload hotkey
+                toggle_auto_upload_hotkey = self.config.get('client', 'toggle_auto_upload_hotkey', fallback='ctrl+shift+q')
+                keyboard.add_hotkey(toggle_auto_upload_hotkey, self.toggle_auto_upload)
+                
+                logger.info(f"Enhanced hotkeys registered: {screenshot_local_hotkey} (local screenshot), {config_dialog_hotkey} (config), {window_toggle_hotkey} (toggle window), {retry_uploads_hotkey} (retry), {toggle_local_hotkey} (toggle local), {open_folder_hotkey} (open folder), {toggle_auto_upload_hotkey} (toggle auto-upload)")
+            
+            self.hotkey_registered = True
+            logger.info(f"All hotkeys registered successfully")
             
         except Exception as e:
-            logger.error(f"Failed to register hotkey: {e}")
+            logger.error(f"Failed to register hotkeys: {e}")
     
     def capture_screenshot(self):
-        """Capture screenshot of active window"""
+        """Capture screenshot of active window with normal processing"""
+        try:
+            image = self._capture_active_window()
+            if image:
+                self.process_screenshot(image)
+                self.screenshot_count += 1
+                logger.info(f"Screenshot captured successfully (#{self.screenshot_count})")
+                
+                # Show notification if enabled
+                if self.config.getboolean('client', 'notifications', fallback=True) and self.main_window:
+                    self.main_window.show_notification("Screenshot captured", "Screenshot has been captured and queued for processing")
+            
+        except Exception as e:
+            logger.error(f"Failed to capture screenshot: {e}")
+    
+    def capture_screenshot_local_only(self):
+        """Capture screenshot and save locally only (no upload)"""
+        try:
+            image = self._capture_active_window()
+            if image:
+                # Generate filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"screenshot_local_{timestamp}.png"
+                
+                # Save locally regardless of settings
+                local_folder = self.config.get('client', 'local_folder', fallback='screenshots')
+                os.makedirs(local_folder, exist_ok=True)
+                
+                local_path = os.path.join(local_folder, filename)
+                
+                # Apply compression
+                quality = int(self.config.get('client', 'compression_quality', fallback='85'))
+                image.save(local_path, 'PNG', optimize=True, compress_level=quality//10)
+                
+                self.screenshot_count += 1
+                logger.info(f"Screenshot saved locally only: {local_path}")
+                
+                # Show notification
+                if self.config.getboolean('client', 'notifications', fallback=True) and self.main_window:
+                    self.main_window.show_notification("Screenshot saved locally", f"Screenshot saved to {local_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to capture local screenshot: {e}")
+    
+    def _capture_active_window(self):
+        """Helper method to capture the active window"""
         try:
             # Add delay before capture
             delay = float(self.config.get('client', 'capture_delay', fallback='0.5'))
@@ -158,14 +260,116 @@ class ScreenshotClient:
             mfc_dc.DeleteDC()
             win32gui.ReleaseDC(hwnd, hwnd_dc)
             
-            # Process screenshot
-            self.process_screenshot(image)
-            
-            self.screenshot_count += 1
-            logger.info(f"Screenshot captured successfully (#{self.screenshot_count})")
+            return image
             
         except Exception as e:
-            logger.error(f"Failed to capture screenshot: {e}")
+            logger.error(f"Failed to capture window: {e}")
+            return None
+    
+    def show_config_dialog(self):
+        """Show configuration dialog"""
+        try:
+            if self.main_window:
+                self.main_window.show_config()
+                logger.info("Configuration dialog opened via hotkey")
+            else:
+                logger.warning("Cannot open config dialog: main window not available")
+        except Exception as e:
+            logger.error(f"Failed to show config dialog: {e}")
+    
+    def toggle_main_window(self):
+        """Toggle main window visibility"""
+        try:
+            if self.main_window:
+                if self.main_window.isVisible():
+                    self.main_window.hide()
+                    logger.info("Main window hidden via hotkey")
+                else:
+                    self.main_window.show()
+                    self.main_window.activateWindow()
+                    self.main_window.raise_()
+                    logger.info("Main window shown via hotkey")
+            else:
+                logger.warning("Cannot toggle window: main window not available")
+        except Exception as e:
+            logger.error(f"Failed to toggle main window: {e}")
+    
+    def retry_failed_uploads(self):
+        """Retry all failed uploads"""
+        try:
+            retry_count = self.retry_queue.qsize()
+            if retry_count > 0:
+                logger.info(f"Retrying {retry_count} failed uploads via hotkey")
+                
+                # Process all items in retry queue immediately
+                while not self.retry_queue.empty():
+                    item = self.retry_queue.get()
+                    self.upload_queue.put(item)
+                
+                # Show notification
+                if self.config.getboolean('client', 'notifications', fallback=True) and self.main_window:
+                    self.main_window.show_notification("Retrying uploads", f"Retrying {retry_count} failed uploads")
+            else:
+                logger.info("No failed uploads to retry")
+                if self.main_window:
+                    self.main_window.show_notification("No failed uploads", "No failed uploads to retry")
+        except Exception as e:
+            logger.error(f"Failed to retry uploads: {e}")
+    
+    def toggle_local_saving(self):
+        """Toggle local saving on/off"""
+        try:
+            current_setting = self.config.getboolean('client', 'save_locally', fallback=True)
+            new_setting = not current_setting
+            
+            self.config.set('client', 'save_locally', str(new_setting).lower())
+            self.save_config(self.config)
+            
+            status = "enabled" if new_setting else "disabled"
+            logger.info(f"Local saving {status} via hotkey")
+            
+            # Show notification
+            if self.config.getboolean('client', 'notifications', fallback=True) and self.main_window:
+                self.main_window.show_notification("Local saving toggled", f"Local saving is now {status}")
+        except Exception as e:
+            logger.error(f"Failed to toggle local saving: {e}")
+    
+    def open_local_folder(self):
+        """Open local screenshots folder in explorer"""
+        try:
+            local_folder = self.config.get('client', 'local_folder', fallback='screenshots')
+            
+            # Create folder if it doesn't exist
+            os.makedirs(local_folder, exist_ok=True)
+            
+            # Open folder in explorer
+            if os.name == 'nt':  # Windows
+                subprocess.run(['explorer', os.path.abspath(local_folder)])
+            else:  # Other OS
+                subprocess.run(['xdg-open', os.path.abspath(local_folder)])
+            
+            logger.info(f"Opened local folder: {local_folder}")
+            
+        except Exception as e:
+            logger.error(f"Failed to open local folder: {e}")
+    
+    def toggle_auto_upload(self):
+        """Toggle auto-upload on/off"""
+        try:
+            current_setting = self.config.getboolean('client', 'auto_upload', fallback=True)
+            new_setting = not current_setting
+            
+            self.config.set('client', 'auto_upload', str(new_setting).lower())
+            self.save_config(self.config)
+            
+            status = "enabled" if new_setting else "disabled"
+            logger.info(f"Auto-upload {status} via hotkey")
+            
+            # Show notification
+            if self.config.getboolean('client', 'notifications', fallback=True) and self.main_window:
+                self.main_window.show_notification("Auto-upload toggled", f"Auto-upload is now {status}")
+        except Exception as e:
+            logger.error(f"Failed to toggle auto-upload: {e}")
     
     def process_screenshot(self, image):
         """Process and optionally save screenshot"""
@@ -195,6 +399,143 @@ class ScreenshotClient:
             
         except Exception as e:
             logger.error(f"Failed to process screenshot: {e}")
+    
+    def process_clipboard_text(self):
+        """Process clipboard text content"""
+        try:
+            # Get clipboard text
+            clipboard = QApplication.clipboard()
+            text = clipboard.text()
+            
+            if not text.strip():
+                logger.warning("Clipboard is empty or contains no text")
+                return
+            
+            # Limit text length
+            max_length = 50000  # 50KB limit
+            if len(text) > max_length:
+                text = text[:max_length]
+                logger.info(f"Clipboard text truncated to {max_length} characters")
+            
+            # Queue for upload if auto-upload is enabled
+            if self.config.getboolean('client', 'auto_upload', fallback=True):
+                self.upload_queue.put({
+                    'type': 'clipboard_text',
+                    'text': text,
+                    'timestamp': int(time.time())
+                })
+            
+            # Save locally if enabled
+            if self.config.getboolean('client', 'save_locally', fallback=True):
+                self.save_clipboard_text_locally(text)
+            
+            logger.info(f"Clipboard text processed successfully ({len(text)} characters)")
+            
+        except Exception as e:
+            logger.error(f"Failed to process clipboard text: {e}")
+    
+    def process_clipboard_image(self):
+        """Process clipboard image content"""
+        try:
+            # Get clipboard image
+            clipboard = QApplication.clipboard()
+            pixmap = clipboard.pixmap()
+            
+            if pixmap.isNull():
+                logger.warning("Clipboard contains no image")
+                return
+            
+            # Convert QPixmap to PIL Image
+            image = self.qpixmap_to_pil(pixmap)
+            
+            # Queue for upload if auto-upload is enabled
+            if self.config.getboolean('client', 'auto_upload', fallback=True):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"clipboard_image_{timestamp}.png"
+                
+                self.upload_queue.put({
+                    'type': 'clipboard_image',
+                    'image': image,
+                    'filename': filename,
+                    'timestamp': int(time.time())
+                })
+            
+            # Save locally if enabled
+            if self.config.getboolean('client', 'save_locally', fallback=True):
+                self.save_clipboard_image_locally(image)
+            
+            logger.info("Clipboard image processed successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to process clipboard image: {e}")
+    
+    def save_clipboard_text_locally(self, text):
+        """Save clipboard text to local file"""
+        try:
+            local_folder = self.config.get('client', 'local_folder', fallback='screenshots')
+            os.makedirs(local_folder, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"clipboard_text_{timestamp}.txt"
+            local_path = os.path.join(local_folder, filename)
+            
+            with open(local_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+            
+            logger.info(f"Clipboard text saved locally: {local_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save clipboard text locally: {e}")
+    
+    def save_clipboard_image_locally(self, image):
+        """Save clipboard image to local file"""
+        try:
+            local_folder = self.config.get('client', 'local_folder', fallback='screenshots')
+            os.makedirs(local_folder, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"clipboard_image_{timestamp}.png"
+            local_path = os.path.join(local_folder, filename)
+            
+            # Apply compression
+            quality = int(self.config.get('client', 'compression_quality', fallback='85'))
+            image.save(local_path, 'PNG', optimize=True, compress_level=quality//10)
+            
+            logger.info(f"Clipboard image saved locally: {local_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save clipboard image locally: {e}")
+    
+    def qpixmap_to_pil(self, pixmap):
+        """Convert QPixmap to PIL Image"""
+        try:
+            # Convert QPixmap to QImage
+            qimage = pixmap.toImage()
+            
+            # Convert QImage to PIL Image
+            width = qimage.width()
+            height = qimage.height()
+            
+            # Get image data as bytes
+            ptr = qimage.bits()
+            ptr.setsize(qimage.byteCount())
+            arr = np.array(ptr).reshape(height, width, 4)  # RGBA
+            
+            # Convert to PIL Image
+            image = Image.fromarray(arr, 'RGBA')
+            
+            # Convert to RGB
+            if image.mode == 'RGBA':
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[3])
+                image = background
+            
+            return image
+            
+        except Exception as e:
+            logger.error(f"Failed to convert QPixmap to PIL Image: {e}")
+            # Fallback: create a simple image
+            return Image.new('RGB', (100, 100), color='white')
     
     def start_upload_thread(self):
         """Start the upload worker thread"""
@@ -242,7 +583,7 @@ class ScreenshotClient:
                         if item['retry_count'] <= max_retries:
                             self.retry_queue.put(item)
                         else:
-                            logger.error(f"Max retries exceeded for {item['filename']}")
+                            logger.error(f"Max retries exceeded for {item.get('filename', 'unknown')}")
                 
                 time.sleep(1)
                 
@@ -251,7 +592,7 @@ class ScreenshotClient:
                 time.sleep(5)
     
     def upload_screenshot(self, item):
-        """Upload screenshot to server"""
+        """Upload screenshot or clipboard content to server"""
         try:
             server_url = self.config.get('client', 'server_url', fallback='https://web.korczewski.de')
             api_token = self.config.get('client', 'api_token', fallback='')
@@ -260,68 +601,121 @@ class ScreenshotClient:
                 logger.error("API token not configured")
                 return False
             
-            # Prepare image data
-            from io import BytesIO
-            image_buffer = BytesIO()
-            item['image'].save(image_buffer, format='PNG')
-            image_buffer.seek(0)
-            
-            # Prepare request
-            url = f"{server_url}/api/screenshot"
             headers = {
                 'Authorization': f'Bearer {api_token}',
                 'User-Agent': 'ScreenshotOCR-WindowsClient/1.0'
             }
             
-            files = {
-                'image': (item['filename'], image_buffer, 'image/png')
-            }
-            
-            data = {
-                'timestamp': item['timestamp']
-            }
-            
-            # Determine SSL verification based on URL
-            # For IP addresses and localhost, disable SSL verification
-            # For proper domains, enable SSL verification
-            import re
-            verify_ssl = self.config.getboolean('client', 'verify_ssl', fallback=True)
-            
-            # Check if URL contains IP address or localhost
-            ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
-            if ('localhost' in server_url.lower() or 
-                '127.0.0.1' in server_url or 
-                re.search(ip_pattern, server_url) or
-                not verify_ssl):
-                ssl_verify = False
-                logger.debug(f"SSL verification disabled for {server_url}")
-                # Suppress SSL warnings for development
-                import urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            # Handle different item types
+            if item.get('type') == 'clipboard_text':
+                # Handle clipboard text
+                url = f"{server_url}/api/clipboard/text"
+                data = {
+                    'text': item['text'],
+                    'timestamp': item['timestamp'],
+                    'language': 'auto'
+                }
+                
+                response = requests.post(
+                    url, 
+                    headers=headers, 
+                    data=data, 
+                    timeout=30,
+                    verify=self.get_ssl_verify(server_url)
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Clipboard text uploaded successfully ({len(item['text'])} chars)")
+                    return True
+                else:
+                    logger.error(f"Clipboard text upload failed: {response.status_code} - {response.text}")
+                    return False
+                    
+            elif item.get('type') == 'clipboard_image':
+                # Handle clipboard image
+                from io import BytesIO
+                image_buffer = BytesIO()
+                item['image'].save(image_buffer, format='PNG')
+                image_buffer.seek(0)
+                
+                url = f"{server_url}/api/clipboard/image"
+                files = {
+                    'image': (item['filename'], image_buffer, 'image/png')
+                }
+                data = {
+                    'timestamp': item['timestamp']
+                }
+                
+                response = requests.post(
+                    url, 
+                    headers=headers, 
+                    files=files, 
+                    data=data, 
+                    timeout=30,
+                    verify=self.get_ssl_verify(server_url)
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Clipboard image uploaded successfully: {item['filename']}")
+                    return True
+                else:
+                    logger.error(f"Clipboard image upload failed: {response.status_code} - {response.text}")
+                    return False
+                    
             else:
-                ssl_verify = True
-                logger.debug(f"SSL verification enabled for {server_url}")
-            
-            # Make request
-            response = requests.post(
-                url, 
-                headers=headers, 
-                files=files, 
-                data=data, 
-                timeout=30,
-                verify=ssl_verify
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Screenshot uploaded successfully: {item['filename']}")
-                return True
-            else:
-                logger.error(f"Upload failed: {response.status_code} - {response.text}")
-                return False
+                # Handle regular screenshot
+                from io import BytesIO
+                image_buffer = BytesIO()
+                item['image'].save(image_buffer, format='PNG')
+                image_buffer.seek(0)
+                
+                url = f"{server_url}/api/screenshot"
+                files = {
+                    'image': (item['filename'], image_buffer, 'image/png')
+                }
+                data = {
+                    'timestamp': item['timestamp']
+                }
+                
+                response = requests.post(
+                    url, 
+                    headers=headers, 
+                    files=files, 
+                    data=data, 
+                    timeout=30,
+                    verify=self.get_ssl_verify(server_url)
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Screenshot uploaded successfully: {item['filename']}")
+                    return True
+                else:
+                    logger.error(f"Upload failed: {response.status_code} - {response.text}")
+                    return False
                 
         except Exception as e:
             logger.error(f"Upload error: {e}")
             return False
+    
+    def get_ssl_verify(self, server_url):
+        """Determine SSL verification based on URL"""
+        import re
+        verify_ssl = self.config.getboolean('client', 'verify_ssl', fallback=True)
+        
+        # Check if URL contains IP address or localhost
+        ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+        if ('localhost' in server_url.lower() or 
+            '127.0.0.1' in server_url or 
+            re.search(ip_pattern, server_url) or
+            not verify_ssl):
+            logger.debug(f"SSL verification disabled for {server_url}")
+            # Suppress SSL warnings for development
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            return False
+        else:
+            logger.debug(f"SSL verification enabled for {server_url}")
+            return True
     
     def get_statistics(self):
         """Get client statistics"""
@@ -392,12 +786,66 @@ class ConfigDialog(QDialog):
         self.auto_upload = QCheckBox()
         self.auto_upload.setChecked(self.config.getboolean('client', 'auto_upload', fallback=True))
         
-        capture_layout.addRow("Hotkey:", self.hotkey)
+        capture_layout.addRow("Screenshot Hotkey:", self.hotkey)
         capture_layout.addRow("Capture Delay:", self.capture_delay)
         capture_layout.addRow("Auto Upload:", self.auto_upload)
         
         capture_tab.setLayout(capture_layout)
         tab_widget.addTab(capture_tab, "Capture")
+        
+        # Clipboard tab
+        clipboard_tab = QWidget()
+        clipboard_layout = QFormLayout()
+        
+        self.clipboard_enabled = QCheckBox()
+        self.clipboard_enabled.setChecked(self.config.getboolean('client', 'clipboard_enabled', fallback=True))
+        
+        self.clipboard_text_hotkey = QLineEdit(self.config.get('client', 'clipboard_text_hotkey', fallback='ctrl+shift+t'))
+        self.clipboard_image_hotkey = QLineEdit(self.config.get('client', 'clipboard_image_hotkey', fallback='ctrl+shift+i'))
+        
+        clipboard_layout.addRow("Enable Clipboard:", self.clipboard_enabled)
+        clipboard_layout.addRow("Text Hotkey:", self.clipboard_text_hotkey)
+        clipboard_layout.addRow("Image Hotkey:", self.clipboard_image_hotkey)
+        
+        # Add help text
+        help_label = QLabel("Hotkey examples: ctrl+s, alt+f1, ctrl+shift+t, win+c")
+        help_label.setStyleSheet("color: #666; font-size: 10px;")
+        clipboard_layout.addRow("", help_label)
+        
+        clipboard_tab.setLayout(clipboard_layout)
+        tab_widget.addTab(clipboard_tab, "Clipboard")
+        
+        # Enhanced Hotkeys tab
+        enhanced_tab = QWidget()
+        enhanced_layout = QFormLayout()
+        
+        self.enhanced_hotkeys_enabled = QCheckBox()
+        self.enhanced_hotkeys_enabled.setChecked(self.config.getboolean('client', 'enhanced_hotkeys_enabled', fallback=True))
+        
+        self.screenshot_local_hotkey = QLineEdit(self.config.get('client', 'screenshot_local_hotkey', fallback='ctrl+shift+s'))
+        self.config_dialog_hotkey = QLineEdit(self.config.get('client', 'config_dialog_hotkey', fallback='ctrl+shift+c'))
+        self.window_toggle_hotkey = QLineEdit(self.config.get('client', 'window_toggle_hotkey', fallback='ctrl+shift+h'))
+        self.retry_uploads_hotkey = QLineEdit(self.config.get('client', 'retry_uploads_hotkey', fallback='ctrl+shift+r'))
+        self.toggle_local_saving_hotkey = QLineEdit(self.config.get('client', 'toggle_local_saving_hotkey', fallback='ctrl+shift+l'))
+        self.open_folder_hotkey = QLineEdit(self.config.get('client', 'open_folder_hotkey', fallback='ctrl+shift+e'))
+        self.toggle_auto_upload_hotkey = QLineEdit(self.config.get('client', 'toggle_auto_upload_hotkey', fallback='ctrl+shift+q'))
+        
+        enhanced_layout.addRow("Enable Enhanced Hotkeys:", self.enhanced_hotkeys_enabled)
+        enhanced_layout.addRow("Local Screenshot:", self.screenshot_local_hotkey)
+        enhanced_layout.addRow("Config Dialog:", self.config_dialog_hotkey)
+        enhanced_layout.addRow("Toggle Window:", self.window_toggle_hotkey)
+        enhanced_layout.addRow("Retry Uploads:", self.retry_uploads_hotkey)
+        enhanced_layout.addRow("Toggle Local Saving:", self.toggle_local_saving_hotkey)
+        enhanced_layout.addRow("Open Folder:", self.open_folder_hotkey)
+        enhanced_layout.addRow("Toggle Auto-Upload:", self.toggle_auto_upload_hotkey)
+        
+        # Add enhanced help text
+        enhanced_help_label = QLabel("Enhanced hotkeys provide quick access to common functions")
+        enhanced_help_label.setStyleSheet("color: #666; font-size: 10px;")
+        enhanced_layout.addRow("", enhanced_help_label)
+        
+        enhanced_tab.setLayout(enhanced_layout)
+        tab_widget.addTab(enhanced_tab, "Enhanced Hotkeys")
         
         # Storage tab
         storage_tab = QWidget()
@@ -474,6 +922,17 @@ class ConfigDialog(QDialog):
         config.set('client', 'server_url', self.server_url.text())
         config.set('client', 'api_token', self.api_token.text())
         config.set('client', 'hotkey', self.hotkey.text())
+        config.set('client', 'clipboard_enabled', str(self.clipboard_enabled.isChecked()).lower())
+        config.set('client', 'clipboard_text_hotkey', self.clipboard_text_hotkey.text())
+        config.set('client', 'clipboard_image_hotkey', self.clipboard_image_hotkey.text())
+        config.set('client', 'enhanced_hotkeys_enabled', str(self.enhanced_hotkeys_enabled.isChecked()).lower())
+        config.set('client', 'screenshot_local_hotkey', self.screenshot_local_hotkey.text())
+        config.set('client', 'config_dialog_hotkey', self.config_dialog_hotkey.text())
+        config.set('client', 'window_toggle_hotkey', self.window_toggle_hotkey.text())
+        config.set('client', 'retry_uploads_hotkey', self.retry_uploads_hotkey.text())
+        config.set('client', 'toggle_local_saving_hotkey', self.toggle_local_saving_hotkey.text())
+        config.set('client', 'open_folder_hotkey', self.open_folder_hotkey.text())
+        config.set('client', 'toggle_auto_upload_hotkey', self.toggle_auto_upload_hotkey.text())
         config.set('client', 'capture_delay', str(self.capture_delay.value() / 10))
         config.set('client', 'auto_upload', str(self.auto_upload.isChecked()).lower())
         config.set('client', 'save_locally', str(self.save_locally.isChecked()).lower())
@@ -491,6 +950,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.client = ScreenshotClient()
+        self.client.main_window = self # Set the client's main_window attribute
         self.tray_icon = None
         self.init_ui()
         self.init_tray()
@@ -501,8 +961,8 @@ class MainWindow(QMainWindow):
     
     def init_ui(self):
         """Initialize UI"""
-        self.setWindowTitle("ScreenshotOCR Windows Client")
-        self.setFixedSize(600, 500)
+        self.setWindowTitle("ScreenshotOCR Windows Client - Enhanced Edition")
+        self.setFixedSize(700, 600)
         
         # Central widget
         central_widget = QWidget()
@@ -556,20 +1016,63 @@ class MainWindow(QMainWindow):
         layout.addWidget(log_group)
         
         # Buttons
-        button_layout = QHBoxLayout()
+        button_layout = QVBoxLayout()
+        
+        # Primary buttons
+        primary_button_layout = QHBoxLayout()
         
         self.capture_button = QPushButton("Take Screenshot")
         self.capture_button.clicked.connect(self.manual_capture)
         
+        self.clipboard_text_button = QPushButton("Process Clipboard Text")
+        self.clipboard_text_button.clicked.connect(self.manual_clipboard_text)
+        
+        self.clipboard_image_button = QPushButton("Process Clipboard Image")
+        self.clipboard_image_button.clicked.connect(self.manual_clipboard_image)
+        
+        primary_button_layout.addWidget(self.capture_button)
+        primary_button_layout.addWidget(self.clipboard_text_button)
+        primary_button_layout.addWidget(self.clipboard_image_button)
+        
+        # Enhanced buttons
+        enhanced_button_layout = QHBoxLayout()
+        
+        self.capture_local_button = QPushButton("Screenshot (Local Only)")
+        self.capture_local_button.clicked.connect(self.manual_capture_local)
+        
+        self.retry_button = QPushButton("Retry Failed Uploads")
+        self.retry_button.clicked.connect(self.manual_retry_uploads)
+        
+        self.open_folder_button = QPushButton("Open Folder")
+        self.open_folder_button.clicked.connect(self.manual_open_folder)
+        
+        enhanced_button_layout.addWidget(self.capture_local_button)
+        enhanced_button_layout.addWidget(self.retry_button)
+        enhanced_button_layout.addWidget(self.open_folder_button)
+        
+        # Control buttons
+        control_button_layout = QHBoxLayout()
+        
         self.config_button = QPushButton("Configuration")
         self.config_button.clicked.connect(self.show_config)
+        
+        self.toggle_auto_upload_button = QPushButton("Toggle Auto-Upload")
+        self.toggle_auto_upload_button.clicked.connect(self.manual_toggle_auto_upload)
+        
+        self.toggle_local_saving_button = QPushButton("Toggle Local Saving")
+        self.toggle_local_saving_button.clicked.connect(self.manual_toggle_local_saving)
         
         self.minimize_button = QPushButton("Minimize to Tray")
         self.minimize_button.clicked.connect(self.hide)
         
-        button_layout.addWidget(self.capture_button)
-        button_layout.addWidget(self.config_button)
-        button_layout.addWidget(self.minimize_button)
+        control_button_layout.addWidget(self.config_button)
+        control_button_layout.addWidget(self.toggle_auto_upload_button)
+        control_button_layout.addWidget(self.toggle_local_saving_button)
+        control_button_layout.addWidget(self.minimize_button)
+        
+        button_layout.addLayout(primary_button_layout)
+        button_layout.addLayout(enhanced_button_layout)
+        button_layout.addLayout(control_button_layout)
         
         layout.addLayout(button_layout)
         
@@ -598,6 +1101,40 @@ class MainWindow(QMainWindow):
         capture_action = QAction("Take Screenshot", self)
         capture_action.triggered.connect(self.manual_capture)
         tray_menu.addAction(capture_action)
+        
+        clipboard_text_action = QAction("Process Clipboard Text", self)
+        clipboard_text_action.triggered.connect(self.manual_clipboard_text)
+        tray_menu.addAction(clipboard_text_action)
+        
+        clipboard_image_action = QAction("Process Clipboard Image", self)
+        clipboard_image_action.triggered.connect(self.manual_clipboard_image)
+        tray_menu.addAction(clipboard_image_action)
+        
+        tray_menu.addSeparator()
+        
+        # Enhanced actions
+        capture_local_action = QAction("Screenshot (Local Only)", self)
+        capture_local_action.triggered.connect(self.manual_capture_local)
+        tray_menu.addAction(capture_local_action)
+        
+        retry_action = QAction("Retry Failed Uploads", self)
+        retry_action.triggered.connect(self.manual_retry_uploads)
+        tray_menu.addAction(retry_action)
+        
+        open_folder_action = QAction("Open Local Folder", self)
+        open_folder_action.triggered.connect(self.manual_open_folder)
+        tray_menu.addAction(open_folder_action)
+        
+        tray_menu.addSeparator()
+        
+        # Toggle actions
+        toggle_auto_upload_action = QAction("Toggle Auto-Upload", self)
+        toggle_auto_upload_action.triggered.connect(self.manual_toggle_auto_upload)
+        tray_menu.addAction(toggle_auto_upload_action)
+        
+        toggle_local_saving_action = QAction("Toggle Local Saving", self)
+        toggle_local_saving_action.triggered.connect(self.manual_toggle_local_saving)
+        tray_menu.addAction(toggle_local_saving_action)
         
         tray_menu.addSeparator()
         
@@ -632,6 +1169,52 @@ class MainWindow(QMainWindow):
         """Manual screenshot capture"""
         self.client.capture_screenshot()
         self.add_log_entry("Manual screenshot captured")
+    
+    def manual_clipboard_text(self):
+        """Manual clipboard text processing"""
+        self.client.process_clipboard_text()
+        self.add_log_entry("Manual clipboard text processed")
+    
+    def manual_clipboard_image(self):
+        """Manual clipboard image processing"""
+        self.client.process_clipboard_image()
+        self.add_log_entry("Manual clipboard image processed")
+    
+    def manual_capture_local(self):
+        """Manual local-only screenshot capture"""
+        self.client.capture_screenshot_local_only()
+        self.add_log_entry("Manual local-only screenshot captured")
+    
+    def manual_retry_uploads(self):
+        """Manual retry failed uploads"""
+        self.client.retry_failed_uploads()
+        self.add_log_entry("Manual retry of failed uploads initiated")
+    
+    def manual_open_folder(self):
+        """Manual open local folder"""
+        self.client.open_local_folder()
+        self.add_log_entry("Local folder opened")
+    
+    def manual_toggle_auto_upload(self):
+        """Manual toggle auto-upload"""
+        self.client.toggle_auto_upload()
+        self.add_log_entry("Auto-upload toggled")
+    
+    def manual_toggle_local_saving(self):
+        """Manual toggle local saving"""
+        self.client.toggle_local_saving()
+        self.add_log_entry("Local saving toggled")
+    
+    def show_notification(self, title, message):
+        """Show system tray notification"""
+        try:
+            if self.tray_icon and self.tray_icon.isVisible():
+                self.tray_icon.showMessage(title, message, QSystemTrayIcon.Information, 3000)
+            else:
+                # Fallback to log entry
+                self.add_log_entry(f"Notification: {title} - {message}")
+        except Exception as e:
+            logger.error(f"Failed to show notification: {e}")
     
     def show_config(self):
         """Show configuration dialog"""

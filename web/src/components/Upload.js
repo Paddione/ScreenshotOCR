@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload as UploadIcon, File, X, Check, AlertCircle } from 'lucide-react';
+import { Upload as UploadIcon, File, X, Check, AlertCircle, Clipboard, Type, Image } from 'lucide-react';
 import { api } from '../services/web_auth_service';
 
 const Upload = () => {
@@ -9,6 +9,8 @@ const Upload = () => {
   const [selectedFolder, setSelectedFolder] = useState('');
   const [folders, setFolders] = useState([]);
   const [error, setError] = useState('');
+  const [clipboardText, setClipboardText] = useState('');
+  const [showClipboardText, setShowClipboardText] = useState(false);
 
   React.useEffect(() => {
     loadFolders();
@@ -102,6 +104,95 @@ const Upload = () => {
     setUploadStatus('idle');
     setUploadedFiles([]);
     setError('');
+    setClipboardText('');
+    setShowClipboardText(false);
+  };
+
+  const handleClipboardText = async () => {
+    if (!navigator.clipboard) {
+      setError('Clipboard API not supported in this browser');
+      return;
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        setError('Clipboard is empty or contains no text');
+        return;
+      }
+      setClipboardText(text);
+      setShowClipboardText(true);
+      setError('');
+    } catch (err) {
+      setError('Failed to read clipboard. Please check browser permissions.');
+    }
+  };
+
+  const handleClipboardImage = async () => {
+    if (!navigator.clipboard) {
+      setError('Clipboard API not supported in this browser');
+      return;
+    }
+
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      
+      for (const clipboardItem of clipboardItems) {
+        for (const type of clipboardItem.types) {
+          if (type.startsWith('image/')) {
+            const blob = await clipboardItem.getType(type);
+            const file = new File([blob], `clipboard_image_${Date.now()}.png`, { type });
+            onDrop([file]);
+            return;
+          }
+        }
+      }
+      
+      setError('No image found in clipboard');
+    } catch (err) {
+      setError('Failed to read clipboard image. Please check browser permissions.');
+    }
+  };
+
+  const uploadClipboardText = async () => {
+    if (!clipboardText.trim()) {
+      setError('Please paste some text first');
+      return;
+    }
+
+    setUploadStatus('uploading');
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('text', clipboardText);
+      formData.append('language', 'auto');
+      formData.append('timestamp', Math.floor(Date.now() / 1000));
+      
+      if (selectedFolder) {
+        formData.append('folder_id', selectedFolder);
+      }
+
+      const response = await api.post('/clipboard/text', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      setUploadedFiles([{
+        file: { name: 'Clipboard Text', size: clipboardText.length },
+        response: response.data,
+        status: 'success'
+      }]);
+      
+      setUploadStatus('success');
+      setShowClipboardText(false);
+      
+    } catch (error) {
+      console.error('Clipboard text upload error:', error);
+      setError('Failed to upload clipboard text. Please try again.');
+      setUploadStatus('error');
+    }
   };
 
   return (
@@ -135,20 +226,99 @@ const Upload = () => {
 
       <div className="card">
         <div className="upload-area">
-          {uploadStatus === 'idle' && (
-            <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
-              <input {...getInputProps()} />
-              <div className="dropzone-content">
-                <UploadIcon size={48} />
-                <h3>
-                  {isDragActive 
-                    ? 'Drop the files here...' 
-                    : 'Drag & drop images here, or click to select'
-                  }
-                </h3>
-                <p>Supports PNG, JPG, GIF and other image formats (max 10MB each)</p>
-                <button type="button" className="btn btn-primary">
-                  Choose Files
+          {uploadStatus === 'idle' && !showClipboardText && (
+            <>
+              <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
+                <input {...getInputProps()} />
+                <div className="dropzone-content">
+                  <UploadIcon size={48} />
+                  <h3>
+                    {isDragActive 
+                      ? 'Drop the files here...' 
+                      : 'Drag & drop images here, or click to select'
+                    }
+                  </h3>
+                  <p>Supports PNG, JPG, GIF and other image formats (max 10MB each)</p>
+                  <button type="button" className="btn btn-primary">
+                    Choose Files
+                  </button>
+                </div>
+              </div>
+              
+              <div className="clipboard-section">
+                <div className="clipboard-divider">
+                  <span>OR</span>
+                </div>
+                
+                <div className="clipboard-actions">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary clipboard-btn"
+                    onClick={handleClipboardText}
+                  >
+                    <Type size={20} />
+                    Paste Text from Clipboard
+                  </button>
+                  
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary clipboard-btn"
+                    onClick={handleClipboardImage}
+                  >
+                    <Image size={20} />
+                    Paste Image from Clipboard
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {uploadStatus === 'idle' && showClipboardText && (
+            <div className="clipboard-text-area">
+              <div className="clipboard-header">
+                <Clipboard size={24} />
+                <h3>Clipboard Text</h3>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowClipboardText(false)}
+                >
+                  <X size={16} />
+                  Cancel
+                </button>
+              </div>
+              
+              <textarea
+                value={clipboardText}
+                onChange={(e) => setClipboardText(e.target.value)}
+                placeholder="Paste your text here or click 'Paste Text from Clipboard' to auto-fill..."
+                className="clipboard-textarea"
+                rows={10}
+              />
+              
+              <div className="clipboard-info">
+                <p>Text length: {clipboardText.length} characters</p>
+                <p>This text will be sent directly to AI for analysis (no OCR needed)</p>
+              </div>
+              
+              <div className="clipboard-buttons">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={handleClipboardText}
+                >
+                  <Clipboard size={16} />
+                  Paste from Clipboard
+                </button>
+                
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={uploadClipboardText}
+                  disabled={!clipboardText.trim()}
+                >
+                  <Check size={16} />
+                  Analyze Text
                 </button>
               </div>
             </div>

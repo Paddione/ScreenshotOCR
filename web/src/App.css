@@ -698,4 +698,130 @@ body {
 .text-muted { color: #718096; }
 .text-success { color: #38a169; }
 .text-danger { color: #e53e3e; }
-.text-warning { color: #d69e2e; } 
+.text-warning { color: #d69e2e; }
+
+/* Clipboard Styles */
+.clipboard-section {
+  margin-top: 30px;
+}
+
+.clipboard-divider {
+  position: relative;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.clipboard-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.clipboard-divider span {
+  background: white;
+  padding: 0 20px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.clipboard-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.clipboard-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  transition: all 0.3s ease;
+}
+
+.clipboard-btn:hover {
+  border-color: #4f46e5;
+  background: #f0f9ff;
+  color: #4f46e5;
+}
+
+.clipboard-text-area {
+  padding: 20px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.clipboard-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.clipboard-header h3 {
+  margin: 0;
+  flex-grow: 1;
+}
+
+.clipboard-textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 15px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  margin-bottom: 15px;
+}
+
+.clipboard-textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.clipboard-info {
+  margin-bottom: 15px;
+}
+
+.clipboard-info p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.clipboard-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.clipboard-buttons .btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .clipboard-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .clipboard-btn {
+    justify-content: center;
+  }
+  
+  .clipboard-buttons {
+    flex-direction: column;
+  }
+}

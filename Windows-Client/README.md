@@ -1,16 +1,19 @@
-# ScreenshotOCR Windows Client
+# ScreenshotOCR Windows Client - Enhanced Edition
 
-A comprehensive Windows desktop application for automated screenshot capture and analysis, integrated with the ScreenshotOCR system.
+A comprehensive Windows desktop application for automated screenshot capture and analysis, integrated with the ScreenshotOCR system. Now with enhanced hotkeys and productivity features for power users.
 
 ## 🚀 Features
 
 ### Core Functionality
 - **Global Hotkey Support**: Configurable hotkey for instant screenshot capture (default: Ctrl+S)
+- **Enhanced Hotkeys**: 7 additional hotkeys for power users and productivity
 - **Active Window Capture**: High-quality screenshot capture using Win32 API
+- **Clipboard Integration**: Direct clipboard text and image processing with hotkeys
 - **Automatic Upload**: Seamless integration with ScreenshotOCR server
 - **Offline Queue**: Retry mechanism for failed uploads with configurable attempts
 - **Local Storage**: Optional local saving of screenshots with compression
 - **System Tray Integration**: Minimizes to system tray for background operation
+- **Quick Actions**: Toggle settings and access features instantly via hotkeys
 
 ### User Interface
 - **Modern PyQt5 GUI**: Clean, responsive interface
@@ -189,6 +192,15 @@ The client automatically creates a configuration file (`client_config.ini`) on f
 server_url = https://web.korczewski.de
 api_token = 8BHxKkgbShG1vwhXje6MDnKYW5d55AwG47XuFma8c5cfNG5GUfJaopXz6cDuY0Df
 hotkey = ctrl+s
+clipboard_text_hotkey = ctrl+shift+t
+clipboard_image_hotkey = ctrl+shift+i
+screenshot_local_hotkey = ctrl+shift+s
+config_dialog_hotkey = ctrl+shift+c
+window_toggle_hotkey = ctrl+shift+h
+retry_uploads_hotkey = ctrl+shift+r
+toggle_local_saving_hotkey = ctrl+shift+l
+open_folder_hotkey = ctrl+shift+e
+toggle_auto_upload_hotkey = ctrl+shift+q
 capture_delay = 0.5
 auto_upload = true
 save_locally = true
@@ -200,6 +212,8 @@ capture_cursor = false
 startup_minimized = true
 notifications = true
 verify_ssl = true
+clipboard_enabled = true
+enhanced_hotkeys_enabled = true
 ```
 
 ### Configuration Tabs
@@ -213,12 +227,27 @@ verify_ssl = true
 - **Capture Delay**: Delay before screenshot capture (in seconds)
 - **Auto Upload**: Automatically upload captured screenshots
 
-#### 3. Storage Settings
+#### 3. Clipboard Settings
+- **Enable Clipboard**: Enable clipboard processing features
+- **Text Hotkey**: Hotkey for clipboard text processing
+- **Image Hotkey**: Hotkey for clipboard image processing
+
+#### 4. Enhanced Hotkeys (New!)
+- **Enable Enhanced Hotkeys**: Enable all enhanced hotkey features
+- **Local Screenshot**: Hotkey for local-only screenshot capture
+- **Config Dialog**: Hotkey to open configuration dialog
+- **Toggle Window**: Hotkey to show/hide main window
+- **Retry Uploads**: Hotkey to retry failed uploads
+- **Toggle Local Saving**: Hotkey to toggle local saving on/off
+- **Open Folder**: Hotkey to open local screenshots folder
+- **Toggle Auto-Upload**: Hotkey to toggle auto-upload on/off
+
+#### 5. Storage Settings
 - **Save Locally**: Save screenshots to local disk
 - **Local Folder**: Directory for local screenshot storage
 - **Compression Quality**: Image compression level (1-100%)
 
-#### 4. Network Settings
+#### 6. Network Settings
 - **Retry Attempts**: Number of upload retry attempts
 - **Retry Delay**: Delay between retry attempts (in seconds)
 - **Verify SSL Certificates**: Enable/disable SSL certificate verification (disable for development with self-signed certificates)
@@ -232,8 +261,40 @@ verify_ssl = true
 4. **Monitor Activity**: View statistics and logs in the main window
 5. **Minimize to Tray**: Click "Minimize to Tray" for background operation
 
+### Enhanced Productivity Features
+
+#### Quick Actions via Hotkeys
+- **Instant Screenshot**: `Ctrl+S` for immediate screenshot capture
+- **Clipboard Processing**: `Ctrl+Shift+T` for text, `Ctrl+Shift+I` for images
+- **Local-Only Capture**: `Ctrl+Shift+S` for screenshots without upload
+- **Window Management**: `Ctrl+Shift+H` to quickly show/hide the application
+- **Upload Management**: `Ctrl+Shift+R` to retry failed uploads instantly
+- **Settings Toggle**: `Ctrl+Shift+L` and `Ctrl+Shift+Q` for quick setting changes
+
+#### Enhanced UI Features
+- **Multiple Button Rows**: Organized primary, enhanced, and control buttons
+- **System Tray Integration**: Complete feature access from system tray
+- **Real-time Notifications**: Visual feedback for all actions
+- **Enhanced Statistics**: Track all operations including enhanced features
+- **Quick Configuration**: `Ctrl+Shift+C` to open settings instantly
+
 ### Hotkey Combinations
-Common hotkey formats:
+
+#### Core Hotkeys
+- `ctrl+s` - Take screenshot (default)
+- `ctrl+shift+t` - Process clipboard text
+- `ctrl+shift+i` - Process clipboard image
+
+#### Enhanced Hotkeys (New!)
+- `ctrl+shift+s` - Take screenshot and save locally only (no upload)
+- `ctrl+shift+c` - Open configuration dialog
+- `ctrl+shift+h` - Show/hide main window
+- `ctrl+shift+r` - Retry all failed uploads
+- `ctrl+shift+l` - Toggle local saving on/off
+- `ctrl+shift+e` - Open local screenshots folder
+- `ctrl+shift+q` - Toggle auto-upload on/off
+
+#### Common Hotkey Formats
 - `ctrl+s` - Control + S
 - `alt+f1` - Alt + F1
 - `ctrl+shift+s` - Control + Shift + S

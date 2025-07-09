@@ -5,12 +5,13 @@
  */
 
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 class NodeTestRunner {
     constructor() {
-        this.baseUrl = 'https://10.0.0.44';
+        this.baseUrl = 'http://10.0.0.44';
         this.testResults = [];
         this.errorLogs = [];
         this.sessionId = `node_session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -54,16 +55,21 @@ class NodeTestRunner {
                     'Content-Type': 'application/json',
                     'User-Agent': 'ScreenshotOCR-TestRunner/1.0',
                     ...extraHeaders
-                },
-                agent: this.httpsAgent
+                }
             };
+
+            // Only add HTTPS agent for HTTPS requests
+            if (parsedUrl.protocol === 'https:') {
+                options.agent = this.httpsAgent;
+            }
 
             if (data && method !== 'GET') {
                 const postData = JSON.stringify(data);
                 options.headers['Content-Length'] = Buffer.byteLength(postData);
             }
 
-            const req = https.request(options, (res) => {
+            const requestModule = parsedUrl.protocol === 'https:' ? https : http;
+            const req = requestModule.request(options, (res) => {
                 let responseData = '';
 
                 res.on('data', (chunk) => {

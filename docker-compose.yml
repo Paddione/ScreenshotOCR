@@ -78,11 +78,14 @@ services:
       - "traefik.http.routers.api-local.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.api-local.entrypoints=web"
       - "traefik.http.routers.api-local.service=api"
+      - "traefik.http.routers.api-local.middlewares=api-stripprefix"
       # Domain access for API (HTTPS with SSL)
       - "traefik.http.routers.api-domain.rule=Host(`${WEBDOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.api-domain.tls.certresolver=letsencrypt"
       - "traefik.http.routers.api-domain.service=api"
+      - "traefik.http.routers.api-domain.middlewares=api-stripprefix"
       - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/api"
     networks:
       - screenshot-network
 
@@ -116,6 +119,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - screenshot-network
+
+  text-analyzer:
+    build:
+      context: ./api
+      dockerfile: DOCKERFILE
+    container_name: screenshot-text-analyzer
+    restart: unless-stopped
+    command: ["python", "text_analyzer.py"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
       redis:
         condition: service_healthy
     networks:

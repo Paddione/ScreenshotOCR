@@ -18,6 +18,10 @@ from api_auth import AuthManager
 from api_routes import router
 from api_models import UserCreate, UserLogin
 import redis.asyncio as redis
+from datetime import datetime
+import json
+from typing import List
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -153,7 +157,7 @@ async def verify_api_token(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Invalid API token")
 
 # Health check endpoint
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
     try:
@@ -169,7 +173,7 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Service unavailable")
 
 # Info endpoint
-@app.get("/api/info")
+@app.get("/info")
 async def get_info():
     """Get server information"""
     return {
@@ -179,7 +183,7 @@ async def get_info():
     }
 
 # Authentication endpoints
-@app.post("/api/auth/login")
+@app.post("/auth/login")
 async def login(user_data: UserLogin):
     """User login"""
     try:
@@ -194,7 +198,7 @@ async def login(user_data: UserLogin):
         logger.error(f"Login error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/api/auth/register")
+@app.post("/auth/register")
 async def register(user_data: UserCreate):
     """User registration - now open to public"""
     try:
@@ -204,7 +208,7 @@ async def register(user_data: UserCreate):
         logger.error(f"Registration error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/auth/refresh")
+@app.post("/auth/refresh")
 async def refresh_token(current_user = Depends(get_current_user)):
     """Refresh access token"""
     try:
@@ -222,7 +226,7 @@ async def refresh_token(current_user = Depends(get_current_user)):
         logger.error(f"Token refresh error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/api/users/me")
+@app.get("/users/me")
 async def get_current_user_info(current_user = Depends(get_current_user)):
     """Get current user information"""
     return {
@@ -232,7 +236,7 @@ async def get_current_user_info(current_user = Depends(get_current_user)):
     }
 
 # Screenshot upload endpoint
-@app.post("/api/screenshot")
+@app.post("/screenshot")
 async def upload_screenshot(
     image: UploadFile = File(...),
     timestamp: int = Form(None),
@@ -270,6 +274,215 @@ async def upload_screenshot(
         raise
     except Exception as e:
         logger.error(f"Screenshot upload error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# New clipboard endpoints
+@app.post("/clipboard/text")
+async def post_clipboard_text(
+    text: str = Form(...),
+    language: str = Form("auto"),
+    timestamp: int = Form(None),
+    user_id: int = Form(None),
+    folder_id: int = Form(None),
+    _: bool = Depends(verify_api_token)
+):
+    """Post clipboard text for AI analysis"""
+    try:
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+        
+        if len(text) > 100000:  # 100KB limit
+            raise HTTPException(status_code=400, detail="Text too long (max 100KB)")
+        
+        # Create a text file for processing
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"clipboard_text_{timestamp_str}.txt"
+        file_path = f"{upload_dir}/{filename}"
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        
+        # Queue for direct AI analysis (skip OCR)
+        job_data = {
+            "file_path": file_path,
+            "timestamp": timestamp,
+            "type": "clipboard_text",
+            "user_id": user_id,
+            "folder_id": folder_id,
+            "language": language,
+            "direct_text": text
+        }
+        
+        # Add to Redis queue
+        await redis_client.lpush("text_analysis_queue", str(job_data))
+        
+        logger.info(f"Clipboard text queued for analysis: {len(text)} characters")
+        
+        return {"message": "Clipboard text queued for analysis", "status": "queued", "text_length": len(text)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Clipboard text error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/clipboard/image")
+async def post_clipboard_image(
+    image: UploadFile = File(...),
+    timestamp: int = Form(None),
+    user_id: int = Form(None),
+    folder_id: int = Form(None),
+    _: bool = Depends(verify_api_token)
+):
+    """Post clipboard image for OCR and AI analysis"""
+    try:
+        if not image.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+        
+        # Save uploaded file
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"clipboard_image_{timestamp_str}.png"
+        file_path = f"{upload_dir}/{filename}"
+        
+        with open(file_path, "wb") as buffer:
+            content = await image.read()
+            buffer.write(content)
+        
+        # Queue for OCR processing
+        job_data = {
+            "file_path": file_path,
+            "timestamp": timestamp,
+            "type": "clipboard_image",
+            "user_id": user_id,
+            "folder_id": folder_id
+        }
+        
+        # Add to Redis queue
+        await redis_client.lpush("ocr_queue", str(job_data))
+        
+        logger.info(f"Clipboard image queued for processing: {file_path}")
+        
+        return {"message": "Clipboard image queued for processing", "status": "queued"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Clipboard image error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/batch/upload")
+async def batch_upload(
+    images: List[UploadFile] = File(...),
+    folder_id: int = Form(None),
+    batch_name: str = Form(None),
+    _: bool = Depends(verify_api_token)
+):
+    """Batch upload multiple images for processing"""
+    try:
+        if len(images) > 20:  # Limit batch size
+            raise HTTPException(status_code=400, detail="Maximum 20 files per batch")
+        
+        # Validate all files are images
+        for image in images:
+            if not image.content_type.startswith('image/'):
+                raise HTTPException(status_code=400, detail=f"File {image.filename} is not an image")
+        
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        batch_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        uploaded_files = []
+        
+        for i, image in enumerate(images):
+            filename = f"batch_{batch_id}_{i:03d}_{image.filename}"
+            file_path = f"{upload_dir}/{filename}"
+            
+            with open(file_path, "wb") as buffer:
+                content = await image.read()
+                buffer.write(content)
+            
+            # Queue for OCR processing
+            job_data = {
+                "file_path": file_path,
+                "timestamp": int(time.time()),
+                "type": "batch_upload",
+                "batch_id": batch_id,
+                "batch_name": batch_name,
+                "folder_id": folder_id,
+                "batch_index": i,
+                "batch_total": len(images)
+            }
+            
+            # Add to Redis queue
+            await redis_client.lpush("ocr_queue", str(job_data))
+            uploaded_files.append(filename)
+        
+        logger.info(f"Batch upload queued: {len(images)} files in batch {batch_id}")
+        
+        return {
+            "message": f"Batch upload queued: {len(images)} files", 
+            "status": "queued",
+            "batch_id": batch_id,
+            "files_count": len(images),
+            "uploaded_files": uploaded_files
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Batch upload error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Enhanced configuration endpoint
+@app.post("/config/ocr")
+async def update_ocr_config(
+    languages: List[str] = Form(['auto']),
+    confidence_threshold: float = Form(50.0),
+    preprocessing_mode: str = Form('auto'),
+    _: bool = Depends(verify_api_token)
+):
+    """Update OCR configuration settings"""
+    try:
+        valid_languages = ['auto', 'english', 'german', 'spanish', 'french', 'italian', 'portuguese', 'dutch']
+        valid_preprocessing = ['auto', 'document', 'screenshot', 'web', 'line', 'document_enhanced']
+        
+        # Validate languages
+        for lang in languages:
+            if lang not in valid_languages:
+                raise HTTPException(status_code=400, detail=f"Invalid language: {lang}")
+        
+        # Validate preprocessing mode
+        if preprocessing_mode not in valid_preprocessing:
+            raise HTTPException(status_code=400, detail=f"Invalid preprocessing mode: {preprocessing_mode}")
+        
+        # Validate confidence threshold
+        if not 0 <= confidence_threshold <= 100:
+            raise HTTPException(status_code=400, detail="Confidence threshold must be between 0 and 100")
+        
+        # Store configuration in Redis
+        config_data = {
+            "languages": languages,
+            "confidence_threshold": confidence_threshold,
+            "preprocessing_mode": preprocessing_mode,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        await redis_client.set("ocr_config", json.dumps(config_data))
+        
+        logger.info(f"OCR configuration updated: {config_data}")
+        
+        return {"message": "OCR configuration updated", "config": config_data}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"OCR config update error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # Include other routes
