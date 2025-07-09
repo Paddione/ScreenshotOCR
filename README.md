@@ -100,11 +100,9 @@ REDIS_URL=redis://redis:6379
    ```
 
 4. **Access the System**
-   - Web Interface (Local): `https://10.0.0.44`
    - Web Interface (Domain): `https://web.korczewski.de`
-   - API Documentation (Local): `https://10.0.0.44/api/docs`
    - API Documentation (Domain): `https://web.korczewski.de/api/docs`
-   - Traefik Dashboard: `https://10.0.0.44/dashboard/`
+   - Traefik Dashboard: `https://web.korczewski.de/dashboard/`
 
 ### Default Credentials
 

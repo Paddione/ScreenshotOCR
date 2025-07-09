@@ -97,6 +97,10 @@ class Database:
                         ocr_text TEXT,
                         ai_response TEXT,
                         image_path VARCHAR(500),
+                        ocr_confidence FLOAT DEFAULT 0,
+                        ocr_language VARCHAR(50),
+                        ai_model VARCHAR(50),
+                        ai_tokens INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT NOW()
                     )
                 """)

@@ -69,7 +69,7 @@ class ScreenshotClient:
         
         # Default configuration
         default_config = {
-            'server_url': 'https://10.0.0.44',
+            'server_url': 'https://web.korczewski.de',
             'api_token': '8BHxKkgbShG1vwhXje6MDnKYW5d55AwG47XuFma8c5cfNG5GUfJaopXz6cDuY0Df',
             'hotkey': 'ctrl+s',
             'capture_delay': '0.5',
@@ -253,7 +253,7 @@ class ScreenshotClient:
     def upload_screenshot(self, item):
         """Upload screenshot to server"""
         try:
-            server_url = self.config.get('client', 'server_url', fallback='https://10.0.0.44')
+            server_url = self.config.get('client', 'server_url', fallback='https://web.korczewski.de')
             api_token = self.config.get('client', 'api_token', fallback='')
             
             if not api_token:
