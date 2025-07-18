@@ -32,7 +32,7 @@ class TextAnalyzer:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         
         # Initialize OpenAI client
-        openai.api_key = self.openai_api_key
+        self.openai_client = openai.OpenAI(api_key=self.openai_api_key)
     
     async def start_processing(self):
         """Start the text analysis processing loop"""
@@ -140,8 +140,8 @@ Please respond in the same language as the input text when possible, or in Engli
 
             # Call OpenAI API
             response = await asyncio.to_thread(
-                openai.ChatCompletion.create,
-                model="gpt-4",
+                self.openai_client.chat.completions.create,
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are an expert assistant that analyzes text content from clipboard and provides detailed, useful insights. You excel at understanding context, extracting key information, and providing actionable advice."},
                     {"role": "user", "content": prompt}
@@ -157,7 +157,7 @@ Please respond in the same language as the input text when possible, or in Engli
             
             return {
                 'analysis': analysis,
-                'model': 'gpt-4',
+                'model': 'gpt-3.5-turbo',
                 'tokens_used': tokens_used
             }
             

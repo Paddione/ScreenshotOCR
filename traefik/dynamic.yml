@@ -39,23 +39,9 @@ http:
         scheme: https
         permanent: true
 
-  # External service routing for web.korczewski.de to 10.0.0.44:8
-  routers:
-    web-korczewski-external:
-      rule: "Host(`web.korczewski.de`)"
-      entryPoints:
-        - "websecure"
-      service: "external-web-service"
-      tls:
-        certResolver: "letsencrypt"
-      middlewares:
-        - "secure-headers"
-
-  services:
-    external-web-service:
-      loadBalancer:
-        servers:
-          - url: "http://10.0.0.44:8000"
+  # Note: Routing is now handled via Docker labels in docker-compose.yml
+  # This allows for both local (IP) and domain access with proper SSL
+  # IP access uses HTTP only, domain access uses HTTPS with Let's Encrypt
 
   # Note: Routing is now handled via Docker labels in docker-compose.yml
   # This allows for both local (IP) and domain access with proper SSL

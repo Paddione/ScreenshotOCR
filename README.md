@@ -274,20 +274,23 @@ Batch Upload → Redis Queue → OCR Processing → AI Analysis → Database Sto
 - **Testing**: Comprehensive test suite with Jest and React Testing Library
 
 ### Windows Client (`/Windows-Client`)
-- **Framework**: PyQt5 for native Windows integration
-- **Python Compatibility**: Updated for Python 3.13 support
+- **Background Service**: Python script that runs silently in the background
+- **Hotkey Integration**: Global hotkey registration for instant capture
 - **Features**:
-  - Global hotkey registration (customizable)
-  - Active window screenshot capture
-  - **Clipboard Integration**: Direct clipboard text and image processing
-  - Automatic server communication
-  - Offline queue for failed uploads
-  - System tray integration
-  - Configuration management UI
-- **Screenshot Capture**: Win32 API integration for high-quality captures
-- **Clipboard Processing**: Native Windows clipboard integration with hotkeys
-- **Queue Management**: Background processing with retry logic
-- **Installation**: Improved troubleshooting guide for Python 3.13
+  - **Screenshot Capture**: Full screen capture with Ctrl+S hotkey
+  - **Clipboard Text Processing**: Send clipboard text for AI analysis with Ctrl+Shift+T
+  - **Clipboard Image Processing**: Send clipboard images for OCR and AI analysis with Ctrl+Shift+I
+  - **Automatic Upload**: Direct API communication with ScreenshotOCR server
+  - **Local Backup**: Optional local saving of captured content
+  - **Comprehensive Logging**: Detailed logs for troubleshooting
+- **Configuration**: Easy-to-edit `config.ini` file for customization
+- **Installation**: 
+  - Simple batch file installation with dependency management
+  - Alternative installer for troubleshooting installation issues
+  - Support for Python 3.8+ with improved compatibility
+- **Testing**: Built-in test suite to verify functionality
+- **Security**: Secure API token authentication
+- **Troubleshooting**: Comprehensive error handling and installation guides
 
 ### Infrastructure
 - **Traefik**: Reverse proxy with automatic Let's Encrypt SSL certificates
@@ -505,6 +508,35 @@ curl -H "Authorization: Bearer YOUR_API_TOKEN" \
      -F "batch_name=My Batch" \
      https://10.0.0.44/api/batch/upload
 ```
+
+### Windows Client Usage
+
+The Windows client provides seamless integration with the ScreenshotOCR system:
+
+#### Quick Start
+1. **Install**: Run `install.bat` to install dependencies
+2. **Configure**: Edit `config.ini` if needed (uses defaults for 10.0.0.44)
+3. **Start**: Run `start_client.bat` or `python screenshot_client.py`
+4. **Use**: Press hotkeys to capture content:
+   - **Ctrl+S**: Take screenshot
+   - **Ctrl+Shift+T**: Send clipboard text
+   - **Ctrl+Shift+I**: Send clipboard image
+
+#### Features
+- **Background Operation**: Runs silently in the background
+- **Automatic Upload**: Content is immediately sent to the server
+- **Local Backup**: Optional local saving of captured content
+- **Comprehensive Logging**: Detailed logs for troubleshooting
+- **Test Suite**: Run `run_tests.bat` to verify functionality
+
+#### Configuration
+The client uses `config.ini` for easy customization:
+- API URL and authentication token
+- Customizable hotkeys
+- Local backup settings
+- Performance tuning options
+
+See `Windows-Client/README.md` for detailed documentation.
 
 ## 🐛 Troubleshooting
 

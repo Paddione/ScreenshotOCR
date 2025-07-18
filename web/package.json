@@ -44,7 +44,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:8000",
+  "proxy": "http://10.0.0.44:8000",
   "jest": {
     "collectCoverageFrom": [
       "src/**/*.{js,jsx}",

@@ -317,7 +317,7 @@ async def post_clipboard_text(
         }
         
         # Add to Redis queue
-        await redis_client.lpush("text_analysis_queue", str(job_data))
+        await redis_client.lpush("text_analysis_queue", json.dumps(job_data))
         
         logger.info(f"Clipboard text queued for analysis: {len(text)} characters")
         
@@ -364,7 +364,7 @@ async def post_clipboard_image(
         }
         
         # Add to Redis queue
-        await redis_client.lpush("ocr_queue", str(job_data))
+        await redis_client.lpush("ocr_queue", json.dumps(job_data))
         
         logger.info(f"Clipboard image queued for processing: {file_path}")
         
@@ -420,7 +420,7 @@ async def batch_upload(
             }
             
             # Add to Redis queue
-            await redis_client.lpush("ocr_queue", str(job_data))
+            await redis_client.lpush("ocr_queue", json.dumps(job_data))
             uploaded_files.append(filename)
         
         logger.info(f"Batch upload queued: {len(images)} files in batch {batch_id}")

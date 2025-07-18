@@ -111,6 +111,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r api/api_requirements.txt
         pip install -r OCR/ocr_requirements.txt
+        pip install google-generativeai==0.4.0
         pip install pytest pytest-asyncio pytest-cov httpx
         
     - name: Run API tests
@@ -119,6 +120,7 @@ jobs:
         REDIS_URL: redis://localhost:6379
         JWT_SECRET_KEY: test_jwt_secret_key_for_testing_only
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         cd api
         python -m pytest -xvs --cov=. --cov-report=xml
@@ -127,6 +129,7 @@ jobs:
       env:
         REDIS_URL: redis://localhost:6379
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         cd OCR
         python -m pytest -xvs --cov=. --cov-report=xml
@@ -261,6 +264,7 @@ jobs:
       run: |
         cp env.example .env
         sed -i 's/your_openai_api_key_here/${{ secrets.OPENAI_API_KEY }}/' .env
+        sed -i 's/your_gemini_api_key_here/${{ secrets.GEMINI_API_KEY }}/' .env
         sed -i 's/web.korczewski.de/localhost/' .env
         
     - name: Run integration tests
@@ -269,7 +273,7 @@ jobs:
         sleep 30 # Wait for services to start
         
         # Run health checks
-        curl -f http://localhost/api/health || exit 1
+        curl -f http://10.0.0.44/api/health || exit 1
         
         # Run integration test suite
         cd testing
@@ -306,6 +310,7 @@ jobs:
       run: |
         cp env.example .env
         sed -i 's/your_openai_api_key_here/${{ secrets.OPENAI_API_KEY }}/' .env
+        sed -i 's/your_gemini_api_key_here/${{ secrets.GEMINI_API_KEY }}/' .env
         sed -i 's/web.korczewski.de/localhost/' .env
         
     - name: Run performance tests

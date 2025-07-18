@@ -15,6 +15,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 import redis.asyncio as redis
 import openai
+import google.generativeai as genai
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass
 
@@ -51,12 +52,23 @@ class OCRProcessor:
     def __init__(self):
         self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
-        
+        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
+
         if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set")
-        
+            logger.warning("OPENAI_API_KEY environment variable not set. OpenAI fallback disabled.")
+        if not self.gemini_api_key:
+            logger.warning("GEMINI_API_KEY environment variable not set. Gemini AI is disabled.")
+
+        if not self.openai_api_key and not self.gemini_api_key:
+            raise ValueError("At least one AI API key (OPENAI_API_KEY or GEMINI_API_KEY) must be set.")
+
         # Initialize OpenAI client
-        openai.api_key = self.openai_api_key
+        if self.openai_api_key:
+            openai.api_key = self.openai_api_key
+        
+        # Initialize Gemini client
+        if self.gemini_api_key:
+            genai.configure(api_key=self.gemini_api_key)
         
         # Enhanced language mapping with available languages only
         self.language_codes = {
@@ -230,6 +242,58 @@ class OCRProcessor:
             # Fallback to original image
             return cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
     
+    async def analyze_with_ai(self, text: str) -> Dict:
+        """
+        Analyze the extracted text with an AI model (Gemini first, then OpenAI as fallback)
+        to extract structured data like invoice details, contact info, etc.
+        """
+        if not text.strip():
+            return {"error": "No text to analyze"}
+
+        # Try Gemini first
+        if self.gemini_api_key:
+            try:
+                logger.info("Analyzing text with Gemini...")
+                model = genai.GenerativeModel('gemini-pro')
+                response = await model.generate_content_async(
+                    f"Extract key information from the following OCR text. "
+                    f"Format the output as a JSON object with fields for 'title', "
+                    f"'summary', and 'entities' (e.g., dates, names, locations).\n\n"
+                    f"Text: {text}"
+                )
+                
+                # Assuming the response is in JSON format
+                return json.loads(response.text)
+
+            except Exception as e:
+                logger.error(f"Error with Gemini AI: {e}. Falling back to OpenAI.")
+
+        # Fallback to OpenAI
+        if self.openai_api_key:
+            try:
+                logger.info("Analyzing text with OpenAI...")
+                response = await openai.ChatCompletion.acreate(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are an intelligent assistant that extracts structured data from text."},
+                        {"role": "user", "content": f"Extract key information from the following OCR text. "
+                                                    f"Format the output as a JSON object with fields for 'title', "
+                                                    f"'summary', and 'entities' (e.g., dates, names, locations).\n\n"
+                                                    f"Text: {text}"}
+                    ],
+                    temperature=0.5,
+                    max_tokens=500
+                )
+                
+                content = response['choices'][0]['message']['content']
+                return json.loads(content)
+
+            except Exception as e:
+                logger.error(f"Error with OpenAI AI: {e}")
+                return {"error": f"OpenAI analysis failed: {e}"}
+
+        return {"error": "No AI provider is available or both failed."}
+    
     def extract_text(self, image: np.ndarray) -> Dict:
         """Extract text from preprocessed image"""
         try:
@@ -297,64 +361,6 @@ class OCRProcessor:
                 'confidence': 0,
                 'language': 'error',
                 'language_code': 'eng'
-            }
-    
-    async def analyze_with_ai(self, text: str) -> Dict:
-        """Analyze extracted text with OpenAI"""
-        try:
-            if not text.strip():
-                return {
-                    'analysis': 'No text was extracted from the image.',
-                    'model': 'none',
-                    'tokens_used': 0
-                }
-            
-            # Enhanced prompt for better analysis
-            prompt = f"""
-Please analyze the following text that was extracted from a screenshot using advanced OCR:
-
-{text}
-
-Provide a comprehensive analysis that includes:
-1. Content type identification (document, webpage, application, code, etc.)
-2. Key information and important points
-3. Context and purpose assessment
-4. Any actionable items or next steps
-5. Quality assessment of the extracted text
-6. Summary of the main content
-
-Please respond in the same language as the extracted text when possible.
-"""
-
-            # Call OpenAI API
-            response = await asyncio.to_thread(
-                openai.ChatCompletion.create,
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert assistant that analyzes OCR-extracted text from screenshots and provides detailed, useful insights."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1200,
-                temperature=0.7
-            )
-            
-            analysis = response.choices[0].message.content
-            tokens_used = response.usage.total_tokens
-            
-            logger.info(f"Enhanced AI analysis completed: {tokens_used} tokens used")
-            
-            return {
-                'analysis': analysis,
-                'model': 'gpt-4',
-                'tokens_used': tokens_used
-            }
-            
-        except Exception as e:
-            logger.error(f"Error with AI analysis: {e}")
-            return {
-                'analysis': f'Error occurred during AI analysis: {str(e)}',
-                'model': 'error',
-                'tokens_used': 0
             }
     
     def load_image(self, file_path: str) -> np.ndarray:

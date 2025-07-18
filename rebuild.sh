@@ -55,7 +55,7 @@ docker-compose exec -T redis redis-cli ping || echo "❌ Redis not ready"
 # Check API health
 echo "📊 API Server:"
 sleep 5
-curl -s http://localhost:8000/api/health || echo "❌ API not responding"
+curl -s http://10.0.0.44:8000/api/health || echo "❌ API not responding"
 
 echo ""
 echo "📊 Final service status:"

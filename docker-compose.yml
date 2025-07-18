@@ -72,6 +72,12 @@ services:
         condition: service_healthy
     volumes:
       - ./data/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     labels:
       - "traefik.enable=true"
       # IP access for API (HTTP only - no SSL)
@@ -103,6 +109,12 @@ services:
         condition: service_healthy
     volumes:
       - ./data/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - screenshot-network
 
@@ -147,7 +159,13 @@ services:
     container_name: screenshot-web
     restart: unless-stopped
     environment:
-      - REACT_APP_API_URL=https://${WEBDOMAIN}/api
+      - REACT_APP_API_URL=http://${WEBDOMAIN}/api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     labels:
       - "traefik.enable=true"
       # IP access for web (HTTP only - no SSL)
